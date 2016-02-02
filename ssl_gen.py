@@ -106,6 +106,37 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
 	cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
 	cert_file.close()
 
+def gen_pfx(cert_name):
+	if cert_name == "":
+		raise Exception("Certificate name cannot be blank")
+	
+	# Load CA certificate
+	ca_cert_file = open(key_dir + '/ca.crt', 'r')
+	ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, ca_cert_file.read())
+	ca_cert_file.close()
+	
+	# Load Certificate
+	cert_file = open(key_dir + '/' + cert_name + '.crt', 'r')
+	cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_file.read())
+	cert_file.close()
+	
+	# Load Private Key
+	key_file = open(key_dir + '/' + cert_name + '.key', 'r')
+	key = crypto.load_privatekey(crypto.FILETYPE_PEM, key_file.read())
+	key_file.close()
+	
+	# Set up PKCS12 structure
+	pkcs12 = crypto.PKCS12()
+	pkcs12.set_ca_certificates([ca_cert])
+	pkcs12.set_certificate(cert)
+	pkcs12.set_privatekey(key)
+	
+	# Write PFX file
+	pkcs12_file=open(key_dir + '/' + cert_name + '.pfx', 'w')
+	pkcs12_file.write(pkcs12.export())
+	pkcs12_file.close()
+	
+
 if __name__ == '__main__':
 	import argparse
 
@@ -115,8 +146,9 @@ if __name__ == '__main__':
 	arg_group.add_argument('--ca', action='store_true', help='Generate a CA certificate')
 	arg_group.add_argument('--server', action='store_true', help='Generate a server certificate')
 	arg_group.add_argument('--client', action='store_true', help='Generate a client certificate')
+	arg_group.add_argument('--pfx', action='store_true', help='Generate a PFX File')
 
-	parser.add_argument('--cert-name', help='Certificate name (required with --server and --client)')
+	parser.add_argument('--cert-name', help='Certificate name (required with --server, --client, and --pfx)')
 	parser.add_argument('--cert-org', help='Certificate organization (required with --ca')
 	parser.add_argument('--cert-ou', help='Certificate organizational unit (required with --ca')
 
@@ -151,7 +183,14 @@ if __name__ == '__main__':
 			exit(1)
 
 		gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, server=False)
-
+	
+	elif args.pfx:
+		if not args.cert_name:
+			print("Error: No certificate name specified")
+			exit(1)
+		
+		gen_pfx(args.cert_name)
+			
 	else:
-		print("Error: Certificate type must be specified using [--ca|--server|--client]")
+		print("Error: Certificate type must be specified using [--ca|--server|--client|--pfx]")
 		exit(1)
