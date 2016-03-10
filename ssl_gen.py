@@ -1,7 +1,9 @@
 from OpenSSL import crypto
 from os import path,makedirs
+from datetime import datetime
 
 key_dir=path.dirname(path.realpath(__file__)) + "/keys"
+key_dir=key_dir.replace('\\','/')
 
 def gen_ca(cert_org="Thinkbox Software", cert_ou="IT", days = 3650):
 	expiry_seconds = days * 86400
@@ -50,6 +52,13 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
 	
 	expiry_seconds = days * 86400
 	
+	try:
+		serial_file = open(key_dir + '/serial', 'r')
+		serial = int(serial_file.readline());
+		serial_file.close
+	except IOError:
+		serial = 1
+	
 	# Load CA certificate
 	ca_cert_file = open(key_dir + '/ca.crt', 'r')
 	ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, ca_cert_file.read())
@@ -81,7 +90,7 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
 		cert.get_subject().OU = cert_ou
 	else:
 		cert.get_subject().OU = ca_cert.get_subject().OU
-	cert.set_serial_number(1)
+	cert.set_serial_number(serial)
 	cert.gmtime_adj_notBefore(0)
 	cert.gmtime_adj_notAfter(expiry_seconds)
 	cert.set_issuer(ca_cert.get_subject())
@@ -105,6 +114,11 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
 	cert_file = open(key_dir + '/' + cert_name + '.crt', 'w')
 	cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
 	cert_file.close()
+	
+	# Write updated serial file
+	serial_file = open(key_dir + '/serial', 'w')
+	serial_file.write(str(serial + 1))
+	serial_file.close()
 
 def gen_pfx(cert_name):
 	if cert_name == "":
@@ -135,7 +149,57 @@ def gen_pfx(cert_name):
 	pkcs12_file=open(key_dir + '/' + cert_name + '.pfx', 'w')
 	pkcs12_file.write(pkcs12.export())
 	pkcs12_file.close()
+
+def revoke_cert(cert_name):
+	# Load CA certificate
+	ca_cert_file = open(key_dir + '/ca.crt', 'r')
+	ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, ca_cert_file.read())
+	ca_cert_file.close()
 	
+	# Load CA key
+	ca_key_file = open(key_dir + '/ca.key', 'r')
+	ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, ca_key_file.read())
+	ca_key_file.close()
+	
+	# Load Certificate
+	cert_file = open(key_dir + '/' + cert_name + '.crt', 'r')
+	cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_file.read())
+	cert_file.close()
+	
+	# Load Private Key
+	key_file = open(key_dir + '/' + cert_name + '.key', 'r')
+	key = crypto.load_privatekey(crypto.FILETYPE_PEM, key_file.read())
+	key_file.close()
+	
+	# Create CRL File
+	#crl = crypto.CRL()
+	#crl_contents = crl.export(ca_cert, ca_key)
+	#crl_file = open(key_dir + '/crl.pem', 'w')
+	#crl_file.write(crl_contents)
+	#crl_file.close()
+	
+	# Load CRL File
+	try:
+		crl_file = open(key_dir + '/crl.pem', 'r')
+		crl = crypto.load_crl(crypto.FILETYPE_PEM, crl_file.read())
+		crl_file.close()
+	except IOError:
+		# Create new CRL file if it doesn't exist
+		crl = crypto.CRL()
+	
+	print 'Revoking ' + cert_name + ' (Serial: ' + str(cert.get_serial_number()) + ')'
+	
+	# Revoke certificate
+	revoked = crypto.Revoked()
+	revoked.set_serial(hex(cert.get_serial_number())[2:])
+	revoked.set_reason('unspecified')
+	revoked.set_rev_date(datetime.utcnow().strftime('%Y%m%d%H%M%SZ'))
+	crl.add_revoked(revoked)
+	
+	# Write CRL file
+	crl_file = open(key_dir + '/crl.pem', 'w')
+	crl_file.write(crl.export(ca_cert, ca_key))
+	crl_file.close()
 
 if __name__ == '__main__':
 	import argparse
@@ -147,6 +211,7 @@ if __name__ == '__main__':
 	arg_group.add_argument('--server', action='store_true', help='Generate a server certificate')
 	arg_group.add_argument('--client', action='store_true', help='Generate a client certificate')
 	arg_group.add_argument('--pfx', action='store_true', help='Generate a PFX File')
+	arg_group.add_argument('--revoke', action='store_true', help='Revoke a certificate')
 
 	parser.add_argument('--cert-name', help='Certificate name (required with --server, --client, and --pfx)')
 	parser.add_argument('--cert-org', help='Certificate organization (required with --ca')
@@ -190,6 +255,13 @@ if __name__ == '__main__':
 			exit(1)
 		
 		gen_pfx(args.cert_name)
+	
+	elif args.revoke:
+		if not args.cert_name:
+			print("Error: No certificate name specified")
+			exit(1)
+		
+		revoke_cert(args.cert_name)
 			
 	else:
 		print("Error: Certificate type must be specified using [--ca|--server|--client|--pfx]")
