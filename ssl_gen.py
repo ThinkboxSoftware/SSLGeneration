@@ -1,9 +1,20 @@
 from OpenSSL import crypto
-from os import path,makedirs
+from os import path,makedirs, remove
 from datetime import datetime
+import re
+from shutil import copy
 
 key_dir=path.dirname(path.realpath(__file__)) + "/keys"
 key_dir=key_dir.replace('\\','/')
+index_file = key_dir + '/index.txt'
+
+def _get_cert_dn(cert):
+	dn = ''
+	for label, value in cert.get_subject().get_components():
+		dn += '/' + label + '=' + value
+	
+	return dn
+	
 
 def gen_ca(cert_org="Thinkbox Software", cert_ou="IT", days = 3650):
 	expiry_seconds = days * 86400
@@ -115,6 +126,11 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
 	cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
 	cert_file.close()
 	
+	# Write to index.txt
+	index_file = open(key_dir + '/index.txt', 'a')
+	index_file.write(db_line)
+	index_file.close()
+	
 	# Write updated serial file
 	serial_file = open(key_dir + '/serial', 'w')
 	serial_file.write(str(serial + 1))
@@ -171,13 +187,6 @@ def revoke_cert(cert_name):
 	key = crypto.load_privatekey(crypto.FILETYPE_PEM, key_file.read())
 	key_file.close()
 	
-	# Create CRL File
-	#crl = crypto.CRL()
-	#crl_contents = crl.export(ca_cert, ca_key)
-	#crl_file = open(key_dir + '/crl.pem', 'w')
-	#crl_file.write(crl_contents)
-	#crl_file.close()
-	
 	# Load CRL File
 	try:
 		crl_file = open(key_dir + '/crl.pem', 'r')
@@ -200,6 +209,24 @@ def revoke_cert(cert_name):
 	crl_file = open(key_dir + '/crl.pem', 'w')
 	crl_file.write(crl.export(ca_cert, ca_key))
 	crl_file.close()
+	
+	# Update index file
+	index_file = open(key_dir + '/index.txt', 'r')
+	index_file_new = open(key_dir + '/index.txt.new', 'w')
+	
+	for line in index_file.readlines():
+		line_split = re.split('\t', line)
+		if int(line_split[3]) == cert.get_serial_number():
+			new_line = 'R\t' + line_split[1] + '\t' + revoked.get_rev_date() + '\t' + line_split[3] + '\t' + line_split[4] + '\t' + line_split[5]
+			index_file_new.write(new_line)
+		else:
+			index_file_new.write(line)
+		
+	index_file.close()
+	index_file_new.close()
+	
+	copy('keys/index.txt.new', 'keys/index.txt')
+	remove('keys/index.txt.new')
 
 if __name__ == '__main__':
 	import argparse
