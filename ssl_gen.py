@@ -127,6 +127,7 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
 	cert_file.close()
 	
 	# Write to index.txt
+	db_line = "V\t" + cert.get_notBefore() + "\t\t" + hex(cert.get_serial_number()) + "\tunknown\t" + str(cert.get_subject())[18:-2] + "\n"
 	index_file = open(key_dir + '/index.txt', 'a')
 	index_file.write(db_line)
 	index_file.close()
@@ -216,7 +217,7 @@ def revoke_cert(cert_name):
 	
 	for line in index_file.readlines():
 		line_split = re.split('\t', line)
-		if int(line_split[3]) == cert.get_serial_number():
+		if int(line_split[3], 16) == cert.get_serial_number():
 			new_line = 'R\t' + line_split[1] + '\t' + revoked.get_rev_date() + '\t' + line_split[3] + '\t' + line_split[4] + '\t' + line_split[5]
 			index_file_new.write(new_line)
 		else:
