@@ -127,7 +127,7 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
 	cert_file.close()
 	
 	# Write to index.txt
-	db_line = "V\t" + cert.get_notBefore() + "\t\t" + hex(cert.get_serial_number()) + "\tunknown\t" + str(cert.get_subject())[18:-2] + "\n"
+	db_line = "V\t" + cert.get_notBefore() + "\t\t" + hex(int(cert.get_serial_number())) + "\tunknown\t" + str(cert.get_subject())[18:-2] + "\n"
 	index_file = open(key_dir + '/index.txt', 'a')
 	index_file.write(db_line)
 	index_file.close()
@@ -201,14 +201,14 @@ def revoke_cert(cert_name):
 	
 	# Revoke certificate
 	revoked = crypto.Revoked()
-	revoked.set_serial(hex(cert.get_serial_number())[2:])
+	revoked.set_serial(hex(int(cert.get_serial_number()))[2:])
 	revoked.set_reason('unspecified')
 	revoked.set_rev_date(datetime.utcnow().strftime('%Y%m%d%H%M%SZ'))
 	crl.add_revoked(revoked)
 	
 	# Write CRL file
 	crl_file = open(key_dir + '/crl.pem', 'w')
-	crl_file.write(crl.export(ca_cert, ca_key))
+	crl_file.write(crl.export(ca_cert, ca_key, days=365))
 	crl_file.close()
 	
 	# Update index file
@@ -229,6 +229,31 @@ def revoke_cert(cert_name):
 	copy('keys/index.txt.new', 'keys/index.txt')
 	remove('keys/index.txt.new')
 
+def renew_crl():
+	# Load CA certificate
+	ca_cert_file = open(key_dir + '/ca.crt', 'r')
+	ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, ca_cert_file.read())
+	ca_cert_file.close()
+	
+	# Load CA key
+	ca_key_file = open(key_dir + '/ca.key', 'r')
+	ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, ca_key_file.read())
+	ca_key_file.close()
+	
+	# Load CRL file
+	try:
+		crl_file = open(key_dir + '/crl.pem', 'r')
+		crl = crypto.load_crl(crypto.FILETYPE_PEM, crl_file.read())
+		crl_file.close()
+	except IOError:
+		# Create new CRL file if it doesn't exist
+		crl = crypto.CRL()
+	
+	# Write CRL file
+	crl_file = open(key_dir + '/crl.pem', 'w')
+	crl_file.write(crl.export(ca_cert, ca_key, days=365))
+	crl_file.close()
+
 if __name__ == '__main__':
 	import argparse
 
@@ -240,10 +265,11 @@ if __name__ == '__main__':
 	arg_group.add_argument('--client', action='store_true', help='Generate a client certificate')
 	arg_group.add_argument('--pfx', action='store_true', help='Generate a PFX File')
 	arg_group.add_argument('--revoke', action='store_true', help='Revoke a certificate')
+	arg_group.add_argument('--renew-crl', action='store_true', help='Renew CRL')
 
 	parser.add_argument('--cert-name', help='Certificate name (required with --server, --client, and --pfx)')
-	parser.add_argument('--cert-org', help='Certificate organization (required with --ca')
-	parser.add_argument('--cert-ou', help='Certificate organizational unit (required with --ca')
+	parser.add_argument('--cert-org', help='Certificate organization (required with --ca)')
+	parser.add_argument('--cert-ou', help='Certificate organizational unit (required with --ca)')
 
 	args = parser.parse_args()
 	
@@ -291,6 +317,9 @@ if __name__ == '__main__':
 		
 		revoke_cert(args.cert_name)
 			
+	elif args.renew_crl:
+		renew_crl()
+
 	else:
 		print("Error: Certificate type must be specified using [--ca|--server|--client|--pfx]")
 		exit(1)
