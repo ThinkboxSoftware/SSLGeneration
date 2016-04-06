@@ -57,7 +57,8 @@ def gen_ca(cert_org="Thinkbox Software", cert_ou="IT", days = 3650):
 	ca_key_file.write(key)
 	ca_key_file.close()
 	
-def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
+def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650):
+	# usage: 1=ca, 2=server, 3=client
 	if cert_name == "":
 		raise Exception("Certificate name cannot be blank")
 	
@@ -106,11 +107,17 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, server=False, days=3650):
 	cert.gmtime_adj_notAfter(expiry_seconds)
 	cert.set_issuer(ca_cert.get_subject())
 	cert.set_pubkey(req.get_pubkey())
-	if server == True:
+	if usage == 1:
+		cert.add_extensions([
+			crypto.X509Extension("basicConstraints", True, "CA:TRUE, pathlen:0"),
+			crypto.X509Extension("keyUsage", True, "keyCertSign, cRLSign"),
+			crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=cert)
+		])
+	elif usage == 2:
 		cert.add_extensions([
 			crypto.X509Extension("extendedKeyUsage", True, "serverAuth"),
 		])
-	else:
+	elif usage == 3:
 		cert.add_extensions([
 			crypto.X509Extension("extendedKeyUsage", True, "clientAuth"),
 		])
@@ -261,6 +268,7 @@ if __name__ == '__main__':
 
 	arg_group = parser.add_mutually_exclusive_group()
 	arg_group.add_argument('--ca', action='store_true', help='Generate a CA certificate')
+	arg_group.add_argument('--intermediate-ca', action='store_true', help='Generate an intermediate ca certificate')
 	arg_group.add_argument('--server', action='store_true', help='Generate a server certificate')
 	arg_group.add_argument('--client', action='store_true', help='Generate a client certificate')
 	arg_group.add_argument('--pfx', action='store_true', help='Generate a PFX File')
@@ -288,20 +296,27 @@ if __name__ == '__main__':
 			exit(1)
 
 		gen_ca(cert_org=args.cert_org, cert_ou=args.cert_ou)
+		
+	elif args.intermediate_ca:
+		if not args.cert_name:
+			print("Error: No certificate name specified")
+			exit(1)
+		
+		gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=1)
 
 	elif args.server:
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
 
-		gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, server=True)
+		gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=2)
 
 	elif args.client:
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
 
-		gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, server=False)
+		gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=3)
 	
 	elif args.pfx:
 		if not args.cert_name:
