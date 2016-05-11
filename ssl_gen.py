@@ -39,7 +39,7 @@ def gen_ca(cert_org="Thinkbox Software", cert_ou="IT", days = 3650):
 		crypto.X509Extension("keyUsage", True, "keyCertSign, cRLSign"),
 		crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=ca)
 	])
-	ca.sign(key, "sha1")
+	ca.sign(key, "sha256")
 
 	# Create key directory if it doesn't exist
 	if not path.exists(key_dir):
@@ -89,7 +89,7 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650):
 	req = crypto.X509Req()
 	req.get_subject().CN = cert_name
 	req.set_pubkey(key)
-	req.sign(key, "sha1")
+	req.sign(key, "sha256")
 	
 	# Sign CSR
 	cert = crypto.X509()
@@ -121,7 +121,7 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650):
 		cert.add_extensions([
 			crypto.X509Extension("extendedKeyUsage", True, "clientAuth"),
 		])
-	cert.sign(ca_key, "sha1")
+	cert.sign(ca_key, "sha256")
 	
 	# Write new key file
 	key_file = open(key_dir + '/' + cert_name + '.key', 'w')
