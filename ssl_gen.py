@@ -35,9 +35,9 @@ def gen_ca(cert_org="Thinkbox Software", cert_ou="IT", days = 3650):
 	ca.set_issuer(ca.get_subject())
 	ca.set_pubkey(key)
 	ca.add_extensions([
-		crypto.X509Extension("basicConstraints", True, "CA:TRUE, pathlen:0"),
-		crypto.X509Extension("keyUsage", True, "keyCertSign, cRLSign"),
-		crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=ca)
+		crypto.X509Extension(b"basicConstraints", True,	b"CA:TRUE, pathlen:0"),
+		crypto.X509Extension(b"keyUsage", True, b"keyCertSign, cRLSign"),
+		crypto.X509Extension(b"subjectKeyIdentifier", False, b"hash", subject=ca)
 	])
 	ca.sign(key, "sha256")
 
@@ -48,13 +48,13 @@ def gen_ca(cert_org="Thinkbox Software", cert_ou="IT", days = 3650):
 	# Write CA certificate to file
 	cert = crypto.dump_certificate(crypto.FILETYPE_PEM, ca)
 	ca_cert_file = open(key_dir + '/ca.crt', 'w')
-	ca_cert_file.write(cert)
+	ca_cert_file.write(cert.decode("utf-8"))
 	ca_cert_file.close()
 
 	# Write CA key to file
 	key = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
 	ca_key_file = open(key_dir + '/ca.key', 'w')
-	ca_key_file.write(key)
+	ca_key_file.write(key.decode("utf-8"))
 	ca_key_file.close()
 	
 def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650):
@@ -109,32 +109,32 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650):
 	cert.set_pubkey(req.get_pubkey())
 	if usage == 1:
 		cert.add_extensions([
-			crypto.X509Extension("basicConstraints", True, "CA:TRUE, pathlen:0"),
-			crypto.X509Extension("keyUsage", True, "keyCertSign, cRLSign"),
-			crypto.X509Extension("subjectKeyIdentifier", False, "hash", subject=cert)
+			crypto.X509Extension(b"basicConstraints", True, b"CA:TRUE, pathlen:0"),
+			crypto.X509Extension(b"keyUsage", True, b"keyCertSign, cRLSign"),
+			crypto.X509Extension(b"subjectKeyIdentifier", False, b"hash", subject=cert)
 		])
 	elif usage == 2:
 		cert.add_extensions([
-			crypto.X509Extension("extendedKeyUsage", True, "serverAuth"),
+			crypto.X509Extension(b"extendedKeyUsage", True, b"serverAuth"),
 		])
 	elif usage == 3:
 		cert.add_extensions([
-			crypto.X509Extension("extendedKeyUsage", True, "clientAuth"),
+			crypto.X509Extension(b"extendedKeyUsage", True, b"clientAuth"),
 		])
 	cert.sign(ca_key, "sha256")
 	
 	# Write new key file
 	key_file = open(key_dir + '/' + cert_name + '.key', 'w')
-	key_file.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, key))
+	key_file.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, key).decode("utf-8"))
 	key_file.close()
 	
 	# Write new certificate file
 	cert_file = open(key_dir + '/' + cert_name + '.crt', 'w')
-	cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+	cert_file.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode("utf-8"))
 	cert_file.close()
 	
 	# Write to index.txt
-	db_line = "V\t" + cert.get_notBefore() + "\t\t" + hex(int(cert.get_serial_number())) + "\tunknown\t" + str(cert.get_subject())[18:-2] + "\n"
+	db_line = "V\t" + cert.get_notBefore().decode("utf-8") + "\t\t" + hex(int(cert.get_serial_number())) + "\tunknown\t" + str(cert.get_subject())[18:-2] + "\n"
 	index_file = open(key_dir + '/index.txt', 'a')
 	index_file.write(db_line)
 	index_file.close()
@@ -171,7 +171,7 @@ def gen_pfx(cert_name):
 	
 	# Write PFX file
 	pkcs12_file=open(key_dir + '/' + cert_name + '.pfx', 'w')
-	pkcs12_file.write(pkcs12.export())
+	pkcs12_file.write(str(pkcs12.export()))
 	pkcs12_file.close()
 
 def revoke_cert(cert_name):
@@ -204,18 +204,18 @@ def revoke_cert(cert_name):
 		# Create new CRL file if it doesn't exist
 		crl = crypto.CRL()
 	
-	print 'Revoking ' + cert_name + ' (Serial: ' + str(cert.get_serial_number()) + ')'
+	print ('Revoking ' + cert_name + ' (Serial: ' + str(cert.get_serial_number()) + ')')
 	
 	# Revoke certificate
 	revoked = crypto.Revoked()
-	revoked.set_serial(hex(int(cert.get_serial_number()))[2:])
-	revoked.set_reason('unspecified')
-	revoked.set_rev_date(datetime.utcnow().strftime('%Y%m%d%H%M%SZ'))
+	revoked.set_serial(hex(int(cert.get_serial_number()))[2:].encode("utf-8"))
+	revoked.set_reason(b'unspecified')
+	revoked.set_rev_date(datetime.utcnow().strftime('%Y%m%d%H%M%SZ').encode("utf-8"))
 	crl.add_revoked(revoked)
 	
 	# Write CRL file
 	crl_file = open(key_dir + '/crl.pem', 'w')
-	crl_file.write(crl.export(ca_cert, ca_key, days=365))
+	crl_file.write(crl.export(ca_cert, ca_key, days=365).decode("utf-8"))
 	crl_file.close()
 	
 	# Update index file
@@ -225,7 +225,7 @@ def revoke_cert(cert_name):
 	for line in index_file.readlines():
 		line_split = re.split('\t', line)
 		if int(line_split[3], 16) == cert.get_serial_number():
-			new_line = 'R\t' + line_split[1] + '\t' + revoked.get_rev_date() + '\t' + line_split[3] + '\t' + line_split[4] + '\t' + line_split[5]
+			new_line = 'R\t' + line_split[1] + '\t' + revoked.get_rev_date().decode("utf-8") + '\t' + line_split[3] + '\t' + line_split[4] + '\t' + line_split[5]
 			index_file_new.write(new_line)
 		else:
 			index_file_new.write(line)
@@ -258,7 +258,7 @@ def renew_crl():
 	
 	# Write CRL file
 	crl_file = open(key_dir + '/crl.pem', 'w')
-	crl_file.write(crl.export(ca_cert, ca_key, days=365))
+	crl_file.write(crl.export(ca_cert, ca_key, days=365).decode("utf-8"))
 	crl_file.close()
 
 if __name__ == '__main__':
