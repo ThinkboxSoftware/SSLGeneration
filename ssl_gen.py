@@ -57,7 +57,7 @@ def gen_ca(cert_org="Thinkbox Software", cert_ou="IT", days = 3650):
 	ca_key_file.write(key.decode("utf-8"))
 	ca_key_file.close()
 	
-def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650):
+def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650, alt_names=[]):
 	# usage: 1=ca, 2=server, 3=client
 	if cert_name == "":
 		raise Exception("Certificate name cannot be blank")
@@ -121,6 +121,14 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650):
 		cert.add_extensions([
 			crypto.X509Extension(b"extendedKeyUsage", True, b"clientAuth"),
 		])
+	
+	# Add alt names
+	for name in alt_names:
+		name = "DNS:" + name
+	cert.add_extensions([
+		crypto.X509Extension(b"subjectAltName", False, b"DNS:" + ",DNS:".join(alt_names).encode("utf-8"))
+	])
+	
 	cert.sign(ca_key, "sha256")
 	
 	# Write new key file
@@ -278,6 +286,7 @@ if __name__ == '__main__':
 	parser.add_argument('--cert-name', help='Certificate name (required with --server, --client, and --pfx)')
 	parser.add_argument('--cert-org', help='Certificate organization (required with --ca)')
 	parser.add_argument('--cert-ou', help='Certificate organizational unit (required with --ca)')
+	parser.add_argument('--alt-name', help='Subject Alternative Name', action='append')
 
 	args = parser.parse_args()
 	
@@ -309,7 +318,7 @@ if __name__ == '__main__':
 			print("Error: No certificate name specified")
 			exit(1)
 
-		gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=2)
+		gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=2, alt_names=args.alt_name)
 
 	elif args.client:
 		if not args.cert_name:
