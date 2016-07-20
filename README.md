@@ -3,6 +3,10 @@
 1. Python
 2. The pyopenssl library.
 
+```
+pip install -r requirement.txt
+```
+
 # Usage
 
 First generate the CA file
