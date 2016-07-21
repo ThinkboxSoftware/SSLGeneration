@@ -123,11 +123,12 @@ def gen_cert(cert_name, cert_org=False, cert_ou=False, usage=3, days=3650, alt_n
 		])
 	
 	# Add alt names
-	for name in alt_names:
-		name = "DNS:" + name
-	cert.add_extensions([
-		crypto.X509Extension(b"subjectAltName", False, b"DNS:" + ",DNS:".join(alt_names).encode("utf-8"))
-	])
+	if alt_names:
+		for name in alt_names:
+			name = "DNS:" + name
+		cert.add_extensions([
+			crypto.X509Extension(b"subjectAltName", False, b"DNS:" + ",DNS:".join(alt_names).encode("utf-8"))
+		])
 	
 	cert.sign(ca_key, "sha256")
 	
