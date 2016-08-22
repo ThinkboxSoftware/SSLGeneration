@@ -18,7 +18,7 @@ This will dump the ca keys in a folder aplty named 'keys'
 
 Generate the server certificate
 ```
-python ssl_gen.py --server --cert-name server <cert_name>
+python ssl_gen.py --server --cert-name <cert_name>
 ```
 
 This will create a server.crt and server.key file in the 'keys' folder.
