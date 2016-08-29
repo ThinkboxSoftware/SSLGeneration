@@ -93,11 +93,22 @@ class SSLCertificateGenerator:
 		pkcs12_file.write(str(pkcs12.export()))
 		pkcs12_file.close()
 	
-	def _write_crl_to_file(self, crl, filepath):
+	def _write_crl_to_file(self, crl, ca_cert, ca_key, filepath):
 		# Write CRL file
 		crl_file = open(filepath, 'w')
 		crl_file.write(crl.export(ca_cert, ca_key, days=365).decode("utf-8"))
 		crl_file.close()
+	
+	def _load_crl_from_file(self, filepath):
+		try:
+			crl_file = open(filepath, 'r')
+			crl = crypto.load_crl(crypto.FILETYPE_PEM, crl_file.read())
+			crl_file.close()
+		except IOError:
+			# Create new CRL file if it doesn't exist
+			crl = crypto.CRL()
+		
+		return crl
 		
 	def _sign_csr(self, req, ca_key, ca_cert, cert_org=False, cert_ou=False, usage=3, days=3650, alt_names=[]):
 		expiry_seconds = days * 86400
@@ -187,16 +198,10 @@ class SSLCertificateGenerator:
 			makedirs(key_dir)
 		
 		# Write CA certificate to file
-		cert = crypto.dump_certificate(crypto.FILETYPE_PEM, ca)
-		ca_cert_file = open(key_dir + '/ca.crt', 'w')
-		ca_cert_file.write(cert.decode("utf-8"))
-		ca_cert_file.close()
+		self._write_cert_to_file(ca, self.key_dir + '/ca.crt')
 	
 		# Write CA key to file
-		key = crypto.dump_privatekey(crypto.FILETYPE_PEM, key)
-		ca_key_file = open(key_dir + '/ca.key', 'w')
-		ca_key_file.write(key.decode("utf-8"))
-		ca_key_file.close()
+		self._write_key_to_file(key, self.key_dir + '/ca.key')
 		
 	def gen_cert(self, cert_name, cert_org=False, cert_ou=False, usage=3, days=3650, alt_names=[]):
 		# usage: 1=ca, 2=server, 3=client
@@ -232,10 +237,10 @@ class SSLCertificateGenerator:
 		ca_cert = self._load_cert_from_file(self.key_dir + '/ca.crt')
 		
 		# Load Certificate
-		cert = self._load_cert_from_file(self.key_dir + '/' + cert_name + '.crt', 'r')
+		cert = self._load_cert_from_file(self.key_dir + '/' + cert_name + '.crt')
 		
 		# Load Private Key
-		key_file = self._load_cert_from_file(self.key_dir + '/' + cert_name + '.key')
+		key = self._load_key_from_file(self.key_dir + '/' + cert_name + '.key')
 		
 		# Set up PKCS12 structure
 		pkcs12 = crypto.PKCS12()
@@ -245,36 +250,35 @@ class SSLCertificateGenerator:
 		
 		# Write PFX file
 		self._write_pfx_to_file(pkcs12, self.key_dir + '/' + cert_name + '.pfx')
+		
+	def gen_csr(self, name, out_dir):
+		key = self._gen_key()
+		csr = self._create_csr(name, key)
+		self._write_key_to_file(key, out_dir + '/' + name + '.key')
+		self._write_csr_to_file(csr, out_dir + '/' + name + '.csr')
+	
+	def sign_csr(self, csr_path):
+		csr = self._load_csr_from_file(csr_path)
+		ca_key = self._load_key_from_file(key_dir + '/ca.key')
+		ca_cert = self._load_cert_from_file(key_dir + '/ca.crt')
+		cert = self._sign_csr(csr, ca_key, ca_cert)
+		self._write_cert_to_file(cert, self.key_dir + '/' + csr.get_subject().CN + '.crt')
 	
 	def revoke_cert(self, cert_name):
 		# Load CA certificate
-		ca_cert_file = open(key_dir + '/ca.crt', 'r')
-		ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, ca_cert_file.read())
-		ca_cert_file.close()
+		ca_cert = self._load_cert_from_file(self.key_dir + '/ca.crt')
 		
-		# Load CA key
-		ca_key_file = open(key_dir + '/ca.key', 'r')
-		ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, ca_key_file.read())
-		ca_key_file.close()
+		# Load CA Key
+		ca_key = self._load_key_from_file(self.key_dir + '/ca.key')
 		
 		# Load Certificate
-		cert_file = open(key_dir + '/' + cert_name + '.crt', 'r')
-		cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_file.read())
-		cert_file.close()
+		cert = self._load_cert_from_file(self.key_dir + '/' + cert_name + '.crt')
 		
 		# Load Private Key
-		key_file = open(key_dir + '/' + cert_name + '.key', 'r')
-		key = crypto.load_privatekey(crypto.FILETYPE_PEM, key_file.read())
-		key_file.close()
+		key = self._load_key_from_file(self.key_dir + '/' + cert_name + '.key')
 		
 		# Load CRL File
-		try:
-			crl_file = open(key_dir + '/crl.pem', 'r')
-			crl = crypto.load_crl(crypto.FILETYPE_PEM, crl_file.read())
-			crl_file.close()
-		except IOError:
-			# Create new CRL file if it doesn't exist
-			crl = crypto.CRL()
+		crl = self._load_crl_from_file(self.key_dir + '/crl.pem')
 		
 		print ('Revoking ' + cert_name + ' (Serial: ' + str(cert.get_serial_number()) + ')')
 		
@@ -286,7 +290,7 @@ class SSLCertificateGenerator:
 		crl.add_revoked(revoked)
 		
 		# Write CRL file
-		self._write_crl_to_file(crl, key_dir + '/crl.pem')
+		self._write_crl_to_file(crl, ca_cert, ca_key, key_dir + '/crl.pem')
 		
 		# Update index file
 		index_file = open(key_dir + '/index.txt', 'r')
@@ -308,26 +312,16 @@ class SSLCertificateGenerator:
 	
 	def renew_crl(self):
 		# Load CA certificate
-		ca_cert_file = open(key_dir + '/ca.crt', 'r')
-		ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM, ca_cert_file.read())
-		ca_cert_file.close()
+		ca_cert = self._load_cert_from_file(self.key_dir + '/ca.crt')
 		
 		# Load CA key
-		ca_key_file = open(key_dir + '/ca.key', 'r')
-		ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM, ca_key_file.read())
-		ca_key_file.close()
+		ca_key = self._load_key_from_file(self.key_dir + '/ca.key')
 		
-		# Load CRL file
-		try:
-			crl_file = open(key_dir + '/crl.pem', 'r')
-			crl = crypto.load_crl(crypto.FILETYPE_PEM, crl_file.read())
-			crl_file.close()
-		except IOError:
-			# Create new CRL file if it doesn't exist
-			crl = crypto.CRL()
+		# Load CRL File
+		crl = self._load_crl_from_file(self.key_dir + '/crl.pem')
 		
 		# Write CRL file
-		self._write_crl_to_file(crl, key_dir + '/crl.pem')
+		self._write_crl_to_file(crl, ca_cert, ca_key, key_dir + '/crl.pem')
 
 if __name__ == '__main__':
 	import argparse
