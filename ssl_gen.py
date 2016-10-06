@@ -89,8 +89,8 @@ class SSLCertificateGenerator:
 		return csr
 	
 	def _write_pfx_to_file(self, pkcs12, filepath):
-		pkcs12_file=open(filepath, 'w')
-		pkcs12_file.write(str(pkcs12.export()))
+		pkcs12_file=open(filepath, 'wb')
+		pkcs12_file.write(pkcs12.export())
 		pkcs12_file.close()
 	
 	def _write_crl_to_file(self, crl, ca_cert, ca_key, filepath):
