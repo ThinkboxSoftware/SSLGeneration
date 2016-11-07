@@ -115,6 +115,7 @@ class SSLCertificateGenerator:
 		
 		# Create and sign certificate
 		cert = crypto.X509()
+		cert.set_version(2)
 		cert.set_subject(req.get_subject())
 		if cert_org:
 			cert.get_subject().O = cert_org
@@ -177,7 +178,7 @@ class SSLCertificateGenerator:
 		
 		# Set up and sign CA certificate
 		ca = crypto.X509()
-		ca.set_version(3)
+		ca.set_version(2)
 		ca.set_serial_number(1)
 		ca.get_subject().CN = "CA"
 		ca.get_subject().O = cert_org
