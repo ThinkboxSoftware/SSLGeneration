@@ -88,9 +88,9 @@ class SSLCertificateGenerator:
 		csr_file.close()
 		return csr
 	
-	def _write_pfx_to_file(self, pkcs12, filepath):
+	def _write_pfx_to_file(self, pkcs12, filepath, passphrase=None):
 		pkcs12_file=open(filepath, 'wb')
-		pkcs12_file.write(pkcs12.export())
+		pkcs12_file.write(pkcs12.export( passphrase ))
 		pkcs12_file.close()
 	
 	def _write_crl_to_file(self, crl, ca_cert, ca_key, filepath):
@@ -230,7 +230,7 @@ class SSLCertificateGenerator:
 		# Write new certificate file
 		self._write_cert_to_file(cert, self.key_dir + '/' + cert_name + '.crt')
 	
-	def gen_pfx(self, cert_name):
+	def gen_pfx(self, cert_name, passphrase=None):
 		if cert_name == "":
 			raise Exception("Certificate name cannot be blank")
 		
@@ -250,7 +250,7 @@ class SSLCertificateGenerator:
 		pkcs12.set_privatekey(key)
 		
 		# Write PFX file
-		self._write_pfx_to_file(pkcs12, self.key_dir + '/' + cert_name + '.pfx')
+		self._write_pfx_to_file(pkcs12, self.key_dir + '/' + cert_name + '.pfx', passphrase)
 		
 	def gen_csr(self, name, out_dir):
 		key = self._gen_key()
@@ -342,6 +342,7 @@ if __name__ == '__main__':
 	parser.add_argument('--cert-org', help='Certificate organization (required with --ca)')
 	parser.add_argument('--cert-ou', help='Certificate organizational unit (required with --ca)')
 	parser.add_argument('--alt-name', help='Subject Alternative Name', action='append')
+	parser.add_argument('--passphrase', help='The passphrase with which to encrypt the output file (optional with --pfx)')
 
 	args = parser.parse_args()
 	
@@ -389,7 +390,10 @@ if __name__ == '__main__':
 			print("Error: No certificate name specified")
 			exit(1)
 		
-		sslgen.gen_pfx(args.cert_name)
+		if args.passphrase:
+			sslgen.gen_pfx( args.cert_name, args.passphrase )
+		else:
+			sslgen.gen_pfx( args.cert_name )
 	
 	elif args.revoke:
 		if not args.cert_name:
