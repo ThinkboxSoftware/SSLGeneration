@@ -3,11 +3,9 @@ from os import path,makedirs, remove
 from datetime import datetime
 import re
 from shutil import copy
-
 key_dir=path.dirname(path.realpath(__file__)) + "/keys"
 key_dir=key_dir.replace('\\','/')
 index_file = key_dir + '/index.txt'
-
 class SSLCertificateGenerator:
 	key_dir = None
 	index_file = None
@@ -323,12 +321,9 @@ class SSLCertificateGenerator:
 		
 		# Write CRL file
 		self._write_crl_to_file(crl, ca_cert, ca_key, key_dir + '/crl.pem')
-
 if __name__ == '__main__':
 	import argparse
-
 	parser = argparse.ArgumentParser(description='SSL Certificate Generator')
-
 	arg_group = parser.add_mutually_exclusive_group()
 	arg_group.add_argument('--ca', action='store_true', help='Generate a CA certificate')
 	arg_group.add_argument('--intermediate-ca', action='store_true', help='Generate an intermediate ca certificate')
@@ -337,16 +332,22 @@ if __name__ == '__main__':
 	arg_group.add_argument('--pfx', action='store_true', help='Generate a PFX File')
 	arg_group.add_argument('--revoke', action='store_true', help='Revoke a certificate')
 	arg_group.add_argument('--renew-crl', action='store_true', help='Renew CRL')
-
 	parser.add_argument('--cert-name', help='Certificate name (required with --server, --client, and --pfx)')
 	parser.add_argument('--cert-org', help='Certificate organization (required with --ca)')
 	parser.add_argument('--cert-ou', help='Certificate organizational unit (required with --ca)')
 	parser.add_argument('--alt-name', help='Subject Alternative Name', action='append')
-	parser.add_argument('--passphrase', help='The passphrase with which to encrypt the output file (optional with --pfx)')
-
+	parser.add_argument('--keys-dir', help='Directory that stores the key files')
+    parser.add_argument('--passphrase', help='The passphrase with which to encrypt the output file (optional with --pfx)')
 	args = parser.parse_args()
 	
-	sslgen = SSLCertificateGenerator()
+	
+	
+	if args.keys_dir:
+		key_dir = args.keys_dir
+		index_file = key_dir + '/index.txt'
+		sslgen = SSLCertificateGenerator(key_dir)
+	else:
+		sslgen = SSLCertificateGenerator()
 	
 	if args.ca:
 		error=False
@@ -361,7 +362,6 @@ if __name__ == '__main__':
 			error=True
 		if error:
 			exit(1)
-
 		sslgen.gen_ca(cert_org=args.cert_org, cert_ou=args.cert_ou)
 		
 	elif args.intermediate_ca:
@@ -370,19 +370,15 @@ if __name__ == '__main__':
 			exit(1)
 		
 		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=1)
-
 	elif args.server:
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
-
 		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=2, alt_names=args.alt_name)
-
 	elif args.client:
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
-
 		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=3, alt_names=args.alt_name)
 	
 	elif args.pfx:
@@ -404,7 +400,6 @@ if __name__ == '__main__':
 			
 	elif args.renew_crl:
 		sslgen.renew_crl()
-
 	else:
 		print("Error: Certificate type must be specified using [--ca|--server|--client|--pfx]")
 		exit(1)
