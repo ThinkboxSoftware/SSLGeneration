@@ -337,7 +337,7 @@ if __name__ == '__main__':
 	parser.add_argument('--cert-ou', help='Certificate organizational unit (required with --ca)')
 	parser.add_argument('--alt-name', help='Subject Alternative Name', action='append')
 	parser.add_argument('--keys-dir', help='Directory that stores the key files')
-    parser.add_argument('--passphrase', help='The passphrase with which to encrypt the output file (optional with --pfx)')
+	parser.add_argument('--passphrase', help='The passphrase with which to encrypt the output file (optional with --pfx)')
 	args = parser.parse_args()
 	
 	
