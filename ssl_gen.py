@@ -3,11 +3,9 @@ from os import path,makedirs, remove
 from datetime import datetime
 import re
 from shutil import copy
-
 key_dir=path.dirname(path.realpath(__file__)) + "/keys"
 key_dir=key_dir.replace('\\','/')
 index_file = key_dir + '/index.txt'
-
 class SSLCertificateGenerator:
 	key_dir = None
 	index_file = None
@@ -88,9 +86,9 @@ class SSLCertificateGenerator:
 		csr_file.close()
 		return csr
 	
-	def _write_pfx_to_file(self, pkcs12, filepath):
+	def _write_pfx_to_file(self, pkcs12, filepath, passphrase=None):
 		pkcs12_file=open(filepath, 'wb')
-		pkcs12_file.write(pkcs12.export())
+		pkcs12_file.write(pkcs12.export( passphrase ))
 		pkcs12_file.close()
 	
 	def _write_crl_to_file(self, crl, ca_cert, ca_key, filepath):
@@ -230,7 +228,7 @@ class SSLCertificateGenerator:
 		# Write new certificate file
 		self._write_cert_to_file(cert, self.key_dir + '/' + cert_name + '.crt')
 	
-	def gen_pfx(self, cert_name):
+	def gen_pfx(self, cert_name, passphrase=None):
 		if cert_name == "":
 			raise Exception("Certificate name cannot be blank")
 		
@@ -250,7 +248,7 @@ class SSLCertificateGenerator:
 		pkcs12.set_privatekey(key)
 		
 		# Write PFX file
-		self._write_pfx_to_file(pkcs12, self.key_dir + '/' + cert_name + '.pfx')
+		self._write_pfx_to_file(pkcs12, self.key_dir + '/' + cert_name + '.pfx', passphrase)
 		
 	def gen_csr(self, name, out_dir):
 		key = self._gen_key()
@@ -323,12 +321,9 @@ class SSLCertificateGenerator:
 		
 		# Write CRL file
 		self._write_crl_to_file(crl, ca_cert, ca_key, key_dir + '/crl.pem')
-
 if __name__ == '__main__':
 	import argparse
-
 	parser = argparse.ArgumentParser(description='SSL Certificate Generator')
-
 	arg_group = parser.add_mutually_exclusive_group()
 	arg_group.add_argument('--ca', action='store_true', help='Generate a CA certificate')
 	arg_group.add_argument('--intermediate-ca', action='store_true', help='Generate an intermediate ca certificate')
@@ -337,15 +332,22 @@ if __name__ == '__main__':
 	arg_group.add_argument('--pfx', action='store_true', help='Generate a PFX File')
 	arg_group.add_argument('--revoke', action='store_true', help='Revoke a certificate')
 	arg_group.add_argument('--renew-crl', action='store_true', help='Renew CRL')
-
 	parser.add_argument('--cert-name', help='Certificate name (required with --server, --client, and --pfx)')
 	parser.add_argument('--cert-org', help='Certificate organization (required with --ca)')
 	parser.add_argument('--cert-ou', help='Certificate organizational unit (required with --ca)')
 	parser.add_argument('--alt-name', help='Subject Alternative Name', action='append')
-
+	parser.add_argument('--keys-dir', help='Directory that stores the key files')
+	parser.add_argument('--passphrase', help='The passphrase with which to encrypt the output file (optional with --pfx)')
 	args = parser.parse_args()
 	
-	sslgen = SSLCertificateGenerator()
+	
+	
+	if args.keys_dir:
+		key_dir = args.keys_dir
+		index_file = key_dir + '/index.txt'
+		sslgen = SSLCertificateGenerator(key_dir)
+	else:
+		sslgen = SSLCertificateGenerator()
 	
 	if args.ca:
 		error=False
@@ -360,7 +362,6 @@ if __name__ == '__main__':
 			error=True
 		if error:
 			exit(1)
-
 		sslgen.gen_ca(cert_org=args.cert_org, cert_ou=args.cert_ou)
 		
 	elif args.intermediate_ca:
@@ -369,19 +370,15 @@ if __name__ == '__main__':
 			exit(1)
 		
 		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=1)
-
 	elif args.server:
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
-
 		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=2, alt_names=args.alt_name)
-
 	elif args.client:
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
-
 		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=3, alt_names=args.alt_name)
 	
 	elif args.pfx:
@@ -389,7 +386,10 @@ if __name__ == '__main__':
 			print("Error: No certificate name specified")
 			exit(1)
 		
-		sslgen.gen_pfx(args.cert_name)
+		if args.passphrase:
+			sslgen.gen_pfx( args.cert_name, args.passphrase )
+		else:
+			sslgen.gen_pfx( args.cert_name )
 	
 	elif args.revoke:
 		if not args.cert_name:
@@ -400,7 +400,6 @@ if __name__ == '__main__':
 			
 	elif args.renew_crl:
 		sslgen.renew_crl()
-
 	else:
 		print("Error: Certificate type must be specified using [--ca|--server|--client|--pfx]")
 		exit(1)
