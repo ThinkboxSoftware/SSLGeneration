@@ -4,7 +4,7 @@
 2. The pyopenssl library.
 
 ```
-pip install -r requirement.txt
+pip install -r requirements.txt
 ```
 
 # Usage
