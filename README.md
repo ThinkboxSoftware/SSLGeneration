@@ -14,7 +14,7 @@ First generate the CA file
 ```
 python ssl_gen.py --ca --cert-org Thinkbox --cert-ou IT
 ```
-This will dump the ca keys in a folder aplty named 'keys'
+This will dump the ca keys in a folder aptly named 'keys'
 
 Generate the server certificate
 ```
