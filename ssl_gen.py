@@ -338,9 +338,8 @@ if __name__ == '__main__':
 	parser.add_argument('--alt-name', help='Subject Alternative Name', action='append')
 	parser.add_argument('--keys-dir', help='Directory that stores the key files')
 	parser.add_argument('--passphrase', help='The passphrase with which to encrypt the output file (optional with --pfx)')
+	parser.add_argument('--days', help='The period of time during which this certificate is intended to be valid')
 	args = parser.parse_args()
-
-
 
 	if args.keys_dir:
 		key_dir = args.keys_dir
@@ -368,18 +367,26 @@ if __name__ == '__main__':
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
-
-		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=1)
+		if args.days:
+			sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=1, days=int(args.days))
+		else:
+			sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=1)
 	elif args.server:
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
-		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=2, alt_names=args.alt_name)
+		if args.days:
+			sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=2, alt_names=args.alt_name, days=int(args.days))
+		else:
+			sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=2, alt_names=args.alt_name)
 	elif args.client:
 		if not args.cert_name:
 			print("Error: No certificate name specified")
 			exit(1)
-		sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=3, alt_names=args.alt_name)
+		if args.days:
+			sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=3, alt_names=args.alt_name, days=int(args.days))
+		else:
+			sslgen.gen_cert(args.cert_name, cert_org=args.cert_org, cert_ou=args.cert_ou, usage=3, alt_names=args.alt_name)
 
 	elif args.pfx:
 		if not args.cert_name:
